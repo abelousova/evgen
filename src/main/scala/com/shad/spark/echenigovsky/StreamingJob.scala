@@ -17,7 +17,7 @@ object StreamingJob extends App {
       val ssc = new StreamingContext(conf, Seconds(1))
       ssc.checkpoint(checkpointDirectory)
 
-      val startTime = new LocalTime()
+      lazy val startTime = new LocalTime()
 
       val kafkaStream = KafkaUtils.createStream(
         ssc = ssc,
@@ -33,7 +33,7 @@ object StreamingJob extends App {
         map { case ((key, log), count) => s"60_second_count=$count" }.
         foreachRDD{rdd =>
           val seconds = TimeSeconds.secondsBetween(startTime, new LocalTime())
-          println(f"${seconds.toStandardMinutes}m${seconds.getSeconds}%02ds: ${rdd.take(1)}")
+          println(f"${seconds.toStandardMinutes.getMinutes}m${seconds.getSeconds % 60}%02ds: ${rdd.take(1).head}")
         }
 
       ssc.start()
