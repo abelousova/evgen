@@ -3,7 +3,7 @@ package com.shad.spark.echenigovsky
 import org.apache.spark.SparkConf
 import org.apache.spark.streaming.kafka.KafkaUtils
 import org.apache.spark.streaming.{Seconds, StreamingContext}
-import org.joda.time.LocalTime
+import org.joda.time.{LocalTime, Seconds => TimeSeconds}
 
 object StreamingJob extends App {
   args match {
@@ -17,6 +17,8 @@ object StreamingJob extends App {
       val ssc = new StreamingContext(conf, Seconds(1))
       ssc.checkpoint(checkpointDirectory)
 
+      val startTime = new LocalTime()
+
       val kafkaStream = KafkaUtils.createStream(
         ssc = ssc,
         zkQuorum = zkQuorum,
@@ -28,8 +30,11 @@ object StreamingJob extends App {
         flatMapValues(StreamingCalculator.getCodeFromLog).
         filter { _._2 != "200" }.
         countByValueAndWindow(Seconds(60), Seconds(15)).
-        map { case ((key, log), count) => s"${new LocalTime().toString}: 60_second_count=$count" }.
-        print()
+        map { case ((key, log), count) => s"60_second_count=$count" }.
+        foreachRDD{rdd =>
+          val seconds = TimeSeconds.secondsBetween(startTime, new LocalTime())
+          println(f"${seconds.toStandardMinutes}m${seconds.getSeconds}%02ds: ${rdd.take(1)}")
+        }
 
       ssc.start()
       ssc.awaitTermination()
