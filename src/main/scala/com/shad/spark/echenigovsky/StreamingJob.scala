@@ -11,9 +11,11 @@ object StreamingJob extends App {
     zkQuorum,
     consumerGroupId,
     topicName,
-    topicPartitions) =>
+    topicPartitions,
+    checkpointDirectory) =>
       val conf = new SparkConf()
       val ssc = new StreamingContext(conf, Seconds(1))
+      ssc.checkpoint(checkpointDirectory)
 
       val kafkaStream = KafkaUtils.createStream(
         ssc = ssc,
@@ -24,9 +26,7 @@ object StreamingJob extends App {
 
       kafkaStream.
         flatMapValues(StreamingCalculator.getCodeFromLog).
-        filter {
-          _._2 != "200"
-        }.
+        filter { _._2 != "200" }.
         countByValueAndWindow(Seconds(60), Seconds(15)).
         map { case ((key, log), count) => s"${new LocalTime().toString}: 60_second_count=$count" }.
         print()
