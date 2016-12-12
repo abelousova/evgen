@@ -33,7 +33,7 @@ object StreamingJob extends App {
         map { case ((key, log), count) => s"60_second_count=$count" }.
         foreachRDD{rdd =>
           val seconds = TimeSeconds.secondsBetween(startTime, new LocalTime())
-          println(f"${seconds.toStandardMinutes.getMinutes}m${seconds.getSeconds % 60}%02ds: ${rdd.take(1).head}")
+          println(f"${seconds.toStandardMinutes.getMinutes}m${seconds.getSeconds % 60}%02ds: ${rdd.take(1).headOption.getOrElse("60_second_count=0")}")
         }
 
       ssc.start()
