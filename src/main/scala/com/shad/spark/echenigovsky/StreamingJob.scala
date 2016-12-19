@@ -38,6 +38,8 @@ object StreamingJob extends App {
         countByValueAndWindow(Seconds(15), Seconds(15)).
         map { case ((key, code), count) => count }.
         foreachRDD{rdd =>
+          rdd.collect().foreach(println)
+
           val currentValue = rdd.take(1).headOption.getOrElse(0l)
 
           if (minuteValues.size > 3) {
@@ -49,10 +51,10 @@ object StreamingJob extends App {
 
           println(
             f"""${currentTime / 60}m${currentTime % 60}%02ds :
-               |  "15_second_count=$currentValue;
-               |  60_second_count=${minuteValues.sum};
-               |  total_count=$totalValue;"
-               | """.stripMargin)
+                 "15_second_count=$currentValue;
+                 60_second_count=${minuteValues.sum};
+                 total_count=$totalValue;"
+                """.stripMargin)
 
           currentTime += 15
         }
