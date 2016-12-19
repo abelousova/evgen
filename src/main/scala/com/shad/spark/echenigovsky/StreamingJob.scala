@@ -1,9 +1,11 @@
 package com.shad.spark.echenigovsky
 
-import org.apache.spark.SparkConf
+import org.apache.spark.{SparkContext, SparkConf}
 import org.apache.spark.streaming.kafka.KafkaUtils
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.joda.time.{LocalTime, Seconds => TimeSeconds}
+
+import scala.collection.mutable
 
 object StreamingJob extends App {
   args match {
@@ -14,10 +16,9 @@ object StreamingJob extends App {
     topicPartitions,
     checkpointDirectory) =>
       val conf = new SparkConf()
-      val ssc = new StreamingContext(conf, Seconds(1))
+      val sc = new SparkContext(conf)
+      val ssc = new StreamingContext(sc, Seconds(1))
       ssc.checkpoint(checkpointDirectory)
-
-      lazy val startTime = new LocalTime()
 
       val kafkaStream = KafkaUtils.createStream(
         ssc = ssc,
@@ -26,14 +27,32 @@ object StreamingJob extends App {
         topics = Map(topicName -> topicPartitions.toInt)
       )
 
+      var currentTime = 0l
+
+      var totalValue = 0l
+      val minuteValues = mutable.Queue.empty[Long]
+
       kafkaStream.
         flatMapValues(StreamingCalculator.getCodeFromLog).
         filter { _._2 != "200" }.
-        countByValueAndWindow(Seconds(60), Seconds(15)).
-        map { case ((key, log), count) => s"60_second_count=$count" }.
+        countByValueAndWindow(Seconds(15), Seconds(15)).
+        map { case ((key, code), count) => count }.
         foreachRDD{rdd =>
-          val seconds = TimeSeconds.secondsBetween(startTime, new LocalTime())
-          println(f"${seconds.toStandardMinutes.getMinutes}m${seconds.getSeconds % 60}%02ds: ${rdd.take(1).headOption.getOrElse("60_second_count=0")}")
+          val currentValue = rdd.take(1).headOption.getOrElse(0l)
+
+          minuteValues.dequeue()
+          minuteValues.enqueue(currentValue)
+
+          totalValue += currentValue
+
+          println(
+            f"""${currentTime / 60}m${currentTime % 60}%02ds :
+               |  "15_second_count=$currentValue;
+               |  60_second_count=${minuteValues.sum};
+               |  total_count=$totalValue;"
+               | """.stripMargin)
+
+          currentTime += 15
         }
 
       ssc.start()
