@@ -40,7 +40,9 @@ object StreamingJob extends App {
         foreachRDD{rdd =>
           val currentValue = rdd.take(1).headOption.getOrElse(0l)
 
-          minuteValues.dequeue()
+          if (minuteValues.size > 3) {
+            minuteValues.dequeue()
+          }
           minuteValues.enqueue(currentValue)
 
           totalValue += currentValue
